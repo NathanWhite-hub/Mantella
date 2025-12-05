@@ -219,45 +219,46 @@ class ClientBase(AIClient):
 
 
     @staticmethod
-    def _extract_assistant_message(chat_completion: Any) -> Any | None:
-        """Return the assistant message object from OpenAI or proxy payloads"""
+    def _extract_assistant_content(chat_completion: Any) -> str | None:
+        """Extract assistant text from ChatCompletion or proxy-formatted payloads"""
         if not chat_completion:
             return None
 
         # Standard OpenAI / OpenAI-compatible shape
         choices = getattr(chat_completion, "choices", None)
-        if choices and len(choices) > 0:
+        if choices:
             try:
-                first_choice = choices[0]
-                message = getattr(first_choice, "message", None)
-                if message:
-                    return message
+                first_choice = choices[0] if len(choices) > 0 else None
+                message = getattr(first_choice, "message", None) if first_choice else None
+                content = getattr(message, "content", None) if message else None
+                if content:
+                    return content
             except Exception:
                 # fallback to proxy response parsing below
                 pass
 
         # Proxy formats like {"messages": [{"role": "assistant", "content": "..."}]}
-        messages_attr = chat_completion.get("messages") if isinstance(chat_completion, dict) else getattr(chat_completion, "messages", None)
+        messages_attr = None
+        if isinstance(chat_completion, dict):
+            messages_attr = chat_completion.get("messages")
+        else:
+            messages_attr = getattr(chat_completion, "messages", None)
 
         if isinstance(messages_attr, list):
             for message in reversed(messages_attr):
-                role = message.get("role") if isinstance(message, dict) else getattr(message, "role", None)
-                if role == "assistant":
-                    return message
+                role = None
+                content = None
+                if isinstance(message, dict):
+                    role = message.get("role")
+                    content = message.get("content")
+                else:
+                    role = getattr(message, "role", None)
+                    content = getattr(message, "content", None)
+
+                if role == "assistant" and content:
+                    return content
 
         return None
-
-    @staticmethod
-    def _extract_assistant_content(chat_completion: Any) -> str | None:
-        """Extract assistant text from ChatCompletion or proxy-formatted payloads"""
-        assistant_message = ClientBase._extract_assistant_message(chat_completion)
-        if not assistant_message:
-            return None
-
-        if isinstance(assistant_message, dict):
-            return assistant_message.get("content")
-
-        return getattr(assistant_message, "content", None)
         
 
     @utils.time_it
