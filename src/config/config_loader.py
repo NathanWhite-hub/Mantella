@@ -14,6 +14,8 @@ from src.config.config_file_writer import ConfigFileWriter
 import src.utils as utils
 from pathlib import Path
 import json
+from src.config.definitions.llm_definitions import LLMDefinitions
+from src.llm.client_base import ClientBase
 
 class ConfigLoader:
     def __init__(self, mygame_folder_path: str, file_name='config.ini', game_override: GameEnum | None = None):
@@ -237,10 +239,12 @@ class ConfigLoader:
             self.llm = self.__definitions.get_string_value("model")
             self.llm = self.llm.split(' |')[0] if ' |' in self.llm else self.llm
             self.wait_time_buffer = self.__definitions.get_float_value("wait_time_buffer")
+            self.custom_llm_api_url = self.__definitions.get_string_value("custom_llm_api_url")
             self.llm_api = self.__definitions.get_string_value("llm_api")
+            if self.llm_api == LLMDefinitions.CUSTOM_OPENAI_COMPATIBLE:
+                normalized_custom_endpoint = ClientBase.normalize_openai_compatible_base_url(self.custom_llm_api_url)
+                self.llm_api = normalized_custom_endpoint if normalized_custom_endpoint else ClientBase.normalize_openai_compatible_base_url('https://api.openai.com/v1')
             # self.llm_priority = self.__definitions.get_string_value("llm_priority")
-            # if self.llm_api == "Custom":
-            #     self.llm_api = self.__definitions.get_string_value("llm_custom_service_url")
             self.custom_token_count = self.__definitions.get_int_value("custom_token_count")
             try:
                 self.llm_params: dict[str, Any] | None = json.loads(self.__definitions.get_string_value("llm_params").replace('\n', ''))
