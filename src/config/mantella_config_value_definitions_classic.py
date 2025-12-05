@@ -94,7 +94,7 @@ class MantellaConfigValueDefinitionsClassic:
         
         llm_advanced_category = ConfigValueGroup("LanguageModel.Advanced", "Language model Advanced", "More advanced settings concerning LLMs", on_value_change_callback)
         llm_advanced_category.add_config_value(LLMDefinitions.get_llm_api_config_value())
-        llm_advanced_category.add_config_value(LLMDefinitions.get_llm_custom_service_url_config_value())
+        llm_advanced_category.add_config_value(LLMDefinitions.get_custom_llm_api_url_config_value())
         llm_advanced_category.add_config_value(LLMDefinitions.get_custom_token_count_config_value())
         llm_advanced_category.add_config_value(LLMDefinitions.get_wait_time_buffer_config_value())
         llm_advanced_category.add_config_value(LLMDefinitions.get_temperature_config_value())

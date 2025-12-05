@@ -23,7 +23,7 @@ Here are the quick steps to get set up:
 2. Create a virtual environment via `py -3.11 -m venv MantellaEnv` in your console (Mantella requires Python 3.11)
 3. Start the environment in your console (`.\MantellaEnv\Scripts\Activate`)
 4. Install the required packages via `pip install -r requirements.txt`
-5. Create a file called `GPT_SECRET_KEY.txt` and paste your secret key in this file
+5. Create a file called `GPT_SECRET_KEY.txt` in the Mantella folder (alongside `main.py`) and paste your API key in this file. For OpenAI-compatible custom/proxy endpoints, place the API key in `CUSTOM_LLM_SECRET_KEY.txt` so it can be separate from your OpenRouter/OpenAI keys.
 6. Set up your paths / any other required settings in the `config.ini`
 7. Run Mantella via `main.py` in the parent directory
 

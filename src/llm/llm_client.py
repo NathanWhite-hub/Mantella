@@ -2,6 +2,7 @@ import src.utils as utils
 import logging
 from openai import AsyncOpenAI
 from src.config.config_loader import ConfigLoader
+from src.config.definitions.llm_definitions import LLMDefinitions
 from src.llm.image_client import ImageClient
 from src.llm.function_client import FunctionClient
 from src.llm.client_base import ClientBase
@@ -11,7 +12,11 @@ class LLMClient(ClientBase):
     '''
     @utils.time_it
     def __init__(self, config: ConfigLoader, secret_key_file: str, image_secret_key_file: str, function_secret_key_file: str = None) -> None:
-        super().__init__(config.llm_api, config.llm, config.llm_params, config.custom_token_count, [secret_key_file])
+        secret_files = [secret_key_file]
+        if config.llm_api == LLMDefinitions.CUSTOM_OPENAI_COMPATIBLE:
+            secret_files = [LLMDefinitions.CUSTOM_LLM_SECRET_FILE, *([secret_key_file] if secret_key_file not in secret_files else [])]
+
+        super().__init__(config.llm_api, config.llm, config.llm_params, config.custom_token_count, secret_files)
 
         if self._is_local:
             logging.info(f"Running Mantella with local language model")

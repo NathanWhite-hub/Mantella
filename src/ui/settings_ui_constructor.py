@@ -4,6 +4,7 @@ from typing import Any, Callable, TypeVar, NamedTuple, Dict, TypedDict, Optional
 import logging
 
 from src.llm.client_base import ClientBase
+from src.config.definitions.llm_definitions import LLMDefinitions
 from src.config.types.config_value_path import ConfigValuePath
 from src.config.types.config_value_bool import ConfigValueBool
 from src.config.types.config_value_float import ConfigValueFloat
@@ -30,7 +31,10 @@ class SettingConfig(NamedTuple):
 
 class ModelConfig(TypedDict):
     dependent_config: str  # The config value this model depends on (e.g., "llm_api")
-    model_list_getter: Callable[[str], Any]  # Function to get model list based on service
+    secret_key_file: str
+    default_model: str
+    model_list_getter: Callable[[str, str, str, bool, bool, str | None], Any]
+    custom_endpoint_config: Optional[str]
 
 class SettingsUIConstructor(ConfigValueVisitor):
     def __init__(self) -> None:
@@ -294,18 +298,21 @@ class SettingsUIConstructor(ConfigValueVisitor):
                 "secret_key_file": 'GPT_SECRET_KEY.txt',
                 "default_model": 'google/gemma-3-27b-it:free',
                 "model_list_getter": ClientBase.get_model_list,
+                "custom_endpoint_config": "custom_llm_api_url",
             },
             "vision_model": {
                 "dependent_config": "vision_llm_api",
                 "secret_key_file": 'IMAGE_SECRET_KEY.txt',
                 "default_model": 'google/gemma-3-27b-it:free',
                 "model_list_getter": ClientBase.get_model_list,
+                "custom_endpoint_config": None,
             },
             "function_llm": {
                 "dependent_config": "function_llm_api",
                 "secret_key_file": 'FUNCTION_GPT_SECRET_KEY.txt',
                 "default_model": 'mistralai/mistral-small-3.2-24b-instruct',
                 "model_list_getter": ClientBase.get_model_list,
+                "custom_endpoint_config": None,
             }
         }
 
@@ -321,10 +328,18 @@ class SettingsUIConstructor(ConfigValueVisitor):
             if handler:
                 service: str = self.__identifier_to_config_value[handler["dependent_config"]].value
                 secret_key_file = handler.get("secret_key_file", 'GPT_SECRET_KEY.txt')
+                if service == LLMDefinitions.CUSTOM_OPENAI_COMPATIBLE and config_value.identifier == 'model':
+                    secret_key_file = LLMDefinitions.CUSTOM_LLM_SECRET_FILE
                 default_model = handler.get("default_model", 'google/gemma-3-27b-it:free')
                 is_vision = True if config_value.identifier == 'vision_model' else False
                 is_tool_calling = True if config_value.identifier == 'function_llm' else False
-                model_list = handler["model_list_getter"](service, secret_key_file, default_model, is_vision, is_tool_calling)
+                custom_base_url: str | None = None
+                custom_endpoint_id = handler.get("custom_endpoint_config")
+                if custom_endpoint_id and service == LLMDefinitions.CUSTOM_OPENAI_COMPATIBLE:
+                    custom_endpoint_value = self.__identifier_to_config_value[custom_endpoint_id].value
+                    custom_base_url = ClientBase.normalize_openai_compatible_base_url(custom_endpoint_value)
+
+                model_list = handler["model_list_getter"](service, secret_key_file, default_model, is_vision, is_tool_calling, custom_base_url)
                 selected_model = config_value.value
                 
                 if not model_list.is_model_in_list(selected_model):
