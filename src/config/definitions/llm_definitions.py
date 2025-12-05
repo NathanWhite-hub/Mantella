@@ -37,6 +37,7 @@ class NarrationIndicatorsEnum(Enum):
 
 class LLMDefinitions:
     CUSTOM_OPENAI_COMPATIBLE = "Custom (OpenAI-Compatible)"
+    CUSTOM_LLM_SECRET_FILE = "CUSTOM_LLM_SECRET_KEY.txt"
 
     @staticmethod
     def get_llm_api_config_value() -> ConfigValue:
@@ -45,7 +46,7 @@ class LLMDefinitions:
             If you are connecting to a local service (KoboldCpp, textgenwebui etc), please ensure that the service is running and a model is loaded. You can also ignore the dropdown options and instead enter a custom URL to connect to other LLM services that provide an OpenAI compatible endpoint.
             After selecting a service, select the model using the option below. Press the *Update* button to load a list of models available from the service.
 
-            If you are using an API (OpenAI, OpenRouter, etc) ensure you have the correct secret key set in `GPT_SECRET_KEY.txt` for the respective service you are using."""
+            If you are using an API (OpenAI, OpenRouter, etc) ensure you have the correct secret key set in `GPT_SECRET_KEY.txt` for the respective service you are using. Custom OpenAI-compatible endpoints can use a dedicated key in `CUSTOM_LLM_SECRET_KEY.txt` so you can keep proxy credentials separate."""
         return ConfigValueSelection("llm_api","LLM Service",description, "OpenRouter", ["OpenRouter", "OpenAI", CUSTOM_OPENAI_COMPATIBLE, "KoboldCpp", "textgenwebui"], allows_free_edit=True)
 
     @staticmethod
@@ -57,7 +58,7 @@ class LLMDefinitions:
         - http://127.0.0.1:5001/v1
 
         Mantella automatically appends `/v1` if it is missing so the OpenAI client can reach `/chat/completions` and `/models`.
-        Place the API key required by your proxy or OpenAI-compatible service in the same `GPT_SECRET_KEY.txt` file used for OpenAI/OpenRouter requests.
+        Place the API key required by your proxy or OpenAI-compatible service in `CUSTOM_LLM_SECRET_KEY.txt` so it can be kept separate from OpenRouter/OpenAI keys.
         This field is used when 'LLM Service' is set to 'Custom (OpenAI-Compatible)'."""
         return ConfigValueString("custom_llm_api_url", "Custom LLM Endpoint (Base URL)", description, "")
 

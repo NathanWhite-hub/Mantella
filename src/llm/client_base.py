@@ -219,46 +219,45 @@ class ClientBase(AIClient):
 
 
     @staticmethod
-    def _extract_assistant_content(chat_completion: Any) -> str | None:
-        """Extract assistant text from ChatCompletion or proxy-formatted payloads"""
+    def _extract_assistant_message(chat_completion: Any) -> Any | None:
+        """Return the assistant message object from OpenAI or proxy payloads"""
         if not chat_completion:
             return None
 
         # Standard OpenAI / OpenAI-compatible shape
         choices = getattr(chat_completion, "choices", None)
-        if choices:
+        if choices and len(choices) > 0:
             try:
-                first_choice = choices[0] if len(choices) > 0 else None
-                message = getattr(first_choice, "message", None) if first_choice else None
-                content = getattr(message, "content", None) if message else None
-                if content:
-                    return content
+                first_choice = choices[0]
+                message = getattr(first_choice, "message", None)
+                if message:
+                    return message
             except Exception:
                 # fallback to proxy response parsing below
                 pass
 
         # Proxy formats like {"messages": [{"role": "assistant", "content": "..."}]}
-        messages_attr = None
-        if isinstance(chat_completion, dict):
-            messages_attr = chat_completion.get("messages")
-        else:
-            messages_attr = getattr(chat_completion, "messages", None)
+        messages_attr = chat_completion.get("messages") if isinstance(chat_completion, dict) else getattr(chat_completion, "messages", None)
 
         if isinstance(messages_attr, list):
             for message in reversed(messages_attr):
-                role = None
-                content = None
-                if isinstance(message, dict):
-                    role = message.get("role")
-                    content = message.get("content")
-                else:
-                    role = getattr(message, "role", None)
-                    content = getattr(message, "content", None)
-
-                if role == "assistant" and content:
-                    return content
+                role = message.get("role") if isinstance(message, dict) else getattr(message, "role", None)
+                if role == "assistant":
+                    return message
 
         return None
+
+    @staticmethod
+    def _extract_assistant_content(chat_completion: Any) -> str | None:
+        """Extract assistant text from ChatCompletion or proxy-formatted payloads"""
+        assistant_message = ClientBase._extract_assistant_message(chat_completion)
+        if not assistant_message:
+            return None
+
+        if isinstance(assistant_message, dict):
+            return assistant_message.get("content")
+
+        return getattr(assistant_message, "content", None)
         
 
     @utils.time_it
@@ -482,8 +481,9 @@ class ClientBase(AIClient):
         if not api_key or api_key == '':
                 if show_error:
                     utils.play_error_sound()
-                    logging.critical(f'''No secret key found in GPT_SECRET_KEY.txt.
-Please create a secret key and paste it in your Mantella mod folder's GPT_SECRET_KEY.txt file.
+                    key_locations = "', '".join(key_files)
+                    logging.critical(f'''No secret key found in '{key_locations}'.
+Please create a secret key and paste it in your Mantella mod folder next to main.py.
 If you are using OpenRouter (default), you can create a secret key in Account -> Keys once you have created an account: https://openrouter.ai/
 If using OpenAI, see here on how to create a secret key: https://help.openai.com/en/articles/4936850-where-do-i-find-my-openai-api-key
 If you are running a model locally, please ensure the service (eg Kobold / Text generation web UI) is selected and running via: http://localhost:4999/ui
@@ -704,5 +704,6 @@ For more information, see here: https://art-from-the-machine.github.io/Mantella/
             return LLMModelList(options, default_model, allows_manual_model_input=allow_manual_model_input)
         except Exception as e:
             utils.play_error_sound()
-            error = f"Failed to retrieve list of models from {error_target}. A valid API key in 'GPT_SECRET_KEY.txt' is required. The file is in your mod folder of Mantella. Error: {e}"
+            primary_secret_file = secret_key_file if isinstance(secret_key_file, str) else 'GPT_SECRET_KEY.txt'
+            error = f"Failed to retrieve list of models from {error_target}. A valid API key in '{primary_secret_file}' is required. The file is in your mod folder of Mantella. Error: {e}"
             return LLMModelList([(error,"error")], "error", allows_manual_model_input=False)

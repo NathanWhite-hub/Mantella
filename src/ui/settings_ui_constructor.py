@@ -328,6 +328,8 @@ class SettingsUIConstructor(ConfigValueVisitor):
             if handler:
                 service: str = self.__identifier_to_config_value[handler["dependent_config"]].value
                 secret_key_file = handler.get("secret_key_file", 'GPT_SECRET_KEY.txt')
+                if service == LLMDefinitions.CUSTOM_OPENAI_COMPATIBLE and config_value.identifier == 'model':
+                    secret_key_file = LLMDefinitions.CUSTOM_LLM_SECRET_FILE
                 default_model = handler.get("default_model", 'google/gemma-3-27b-it:free')
                 is_vision = True if config_value.identifier == 'vision_model' else False
                 is_tool_calling = True if config_value.identifier == 'function_llm' else False
