@@ -36,6 +36,8 @@ class NarrationIndicatorsEnum(Enum):
         }[self]
 
 class LLMDefinitions:
+    CUSTOM_OPENAI_COMPATIBLE = "Custom (OpenAI-Compatible)"
+
     @staticmethod
     def get_llm_api_config_value() -> ConfigValue:
         description = """Selects the LLM service to connect to (either local or via an API).
@@ -44,7 +46,20 @@ class LLMDefinitions:
             After selecting a service, select the model using the option below. Press the *Update* button to load a list of models available from the service.
 
             If you are using an API (OpenAI, OpenRouter, etc) ensure you have the correct secret key set in `GPT_SECRET_KEY.txt` for the respective service you are using."""
-        return ConfigValueSelection("llm_api","LLM Service",description, "OpenRouter", ["OpenRouter", "OpenAI", "KoboldCpp", "textgenwebui"], allows_free_edit=True)
+        return ConfigValueSelection("llm_api","LLM Service",description, "OpenRouter", ["OpenRouter", "OpenAI", CUSTOM_OPENAI_COMPATIBLE, "KoboldCpp", "textgenwebui"], allows_free_edit=True)
+
+    @staticmethod
+    def get_custom_llm_api_url_config_value() -> ConfigValue:
+        description = """Base URL for OpenAI-compatible custom endpoints (including reverse proxies).
+
+        Examples:
+        - https://example.com/proxy/aws/claude
+        - http://127.0.0.1:5001/v1
+
+        Mantella automatically appends `/v1` if it is missing so the OpenAI client can reach `/chat/completions` and `/models`.
+        Place the API key required by your proxy or OpenAI-compatible service in the same `GPT_SECRET_KEY.txt` file used for OpenAI/OpenRouter requests.
+        This field is used when 'LLM Service' is set to 'Custom (OpenAI-Compatible)'."""
+        return ConfigValueString("custom_llm_api_url", "Custom LLM Endpoint (Base URL)", description, "")
 
     @staticmethod
     def get_model_config_value() -> ConfigValue:

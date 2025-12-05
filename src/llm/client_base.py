@@ -201,26 +201,63 @@ class ClientBase(AIClient):
     @utils.time_it
     def request_call(self, messages: Message | message_thread) -> str | None:
         """Makes a request to the LLM and returns just the message content
-        
+
         Args:
             messages: The messages to send to the LLM
-            
+
         Returns:
             The LLM response message content or None if the request failed
         """
         chat_completion: ChatCompletion = self._request_call_full(messages)
-        
-        if (
-            not chat_completion or 
-            not chat_completion.choices or 
-            chat_completion.choices.__len__() < 1 or 
-            not chat_completion.choices[0].message.content
-        ):
+        reply = self._extract_assistant_content(chat_completion)
+
+        if not reply:
             logging.info(f"LLM Response failed")
             return None
-        
-        reply = chat_completion.choices[0].message.content
+
         return reply
+
+
+    @staticmethod
+    def _extract_assistant_message(chat_completion: Any) -> Any | None:
+        """Return the assistant message object from OpenAI or proxy payloads"""
+        if not chat_completion:
+            return None
+
+        # Standard OpenAI / OpenAI-compatible shape
+        choices = getattr(chat_completion, "choices", None)
+        if choices and len(choices) > 0:
+            try:
+                first_choice = choices[0]
+                message = getattr(first_choice, "message", None)
+                if message:
+                    return message
+            except Exception:
+                # fallback to proxy response parsing below
+                pass
+
+        # Proxy formats like {"messages": [{"role": "assistant", "content": "..."}]}
+        messages_attr = chat_completion.get("messages") if isinstance(chat_completion, dict) else getattr(chat_completion, "messages", None)
+
+        if isinstance(messages_attr, list):
+            for message in reversed(messages_attr):
+                role = message.get("role") if isinstance(message, dict) else getattr(message, "role", None)
+                if role == "assistant":
+                    return message
+
+        return None
+
+    @staticmethod
+    def _extract_assistant_content(chat_completion: Any) -> str | None:
+        """Extract assistant text from ChatCompletion or proxy-formatted payloads"""
+        assistant_message = ClientBase._extract_assistant_message(chat_completion)
+        if not assistant_message:
+            return None
+
+        if isinstance(assistant_message, dict):
+            return assistant_message.get("content")
+
+        return getattr(assistant_message, "content", None)
         
 
     @utils.time_it
@@ -341,6 +378,19 @@ class ClientBase(AIClient):
             finally:
                 if async_client:
                     await async_client.close()
+
+
+    @staticmethod
+    def normalize_openai_compatible_base_url(base_url: str) -> str:
+        """Ensure an OpenAI-compatible endpoint ends with /v1 for chat completion routes"""
+        if not base_url:
+            return ''
+
+        normalized_url = base_url.strip().rstrip('/')
+        if not normalized_url.lower().endswith('/v1'):
+            normalized_url = f"{normalized_url}/v1"
+
+        return normalized_url
 
 
     @utils.time_it
@@ -574,14 +624,32 @@ For more information, see here: https://art-from-the-machine.github.io/Mantella/
         return num_tokens
     
     @staticmethod
-    def get_model_list(service: str, secret_key_file: str, default_model: str = "google/gemma-3-27b-it:free", is_vision: bool = False, is_tool_calling: bool = False) -> LLMModelList:
-        if service not in ['OpenAI', 'OpenRouter']:
+    def get_model_list(service: str, secret_key_file: str, default_model: str = "google/gemma-3-27b-it:free", is_vision: bool = False, is_tool_calling: bool = False, base_url: str | None = None) -> LLMModelList:
+        is_custom_openai = base_url is not None and base_url.strip().lower().startswith(('http://', 'https://'))
+        error_target = base_url if is_custom_openai else service
+
+        if service not in ['OpenAI', 'OpenRouter'] and not is_custom_openai:
             return LLMModelList([("Custom model","Custom model")], "Custom model", allows_manual_model_input=True)
         try:
-            if service == "OpenAI":
+            if service == "OpenAI" or is_custom_openai:
                 default_model = "gpt-4o-mini"
-                models = utils.get_openai_model_list()
-                # OpenAI models are not a "live" list, so manual input needs to be allowed for when new models not listed are released
+                secret_key_files = [secret_key_file, 'GPT_SECRET_KEY.txt'] if secret_key_file != 'GPT_SECRET_KEY.txt' else [secret_key_file]
+                secret_key = ClientBase._get_api_key(secret_key_files, not is_vision)
+                if not secret_key:
+                    return LLMModelList([(f"No secret key found in {secret_key_file}", "Custom model")], "Custom model", allows_manual_model_input=True)
+
+                base_url_to_use = base_url if is_custom_openai else 'https://api.openai.com/v1'
+                base_url_to_use = ClientBase.normalize_openai_compatible_base_url(base_url_to_use)
+
+                # don't log initial 'HTTP Request: GET ...'
+                logging.getLogger('openai').setLevel(logging.ERROR)
+                logging.getLogger("httpx").setLevel(logging.ERROR)
+                client = OpenAI(api_key=secret_key, base_url=base_url_to_use)
+                models = client.models.list()
+                logging.getLogger('openai').setLevel(logging.INFO)
+                logging.getLogger("httpx").setLevel(logging.INFO)
+                client.close()
+                # OpenAI-compatible endpoints are assumed to allow manual model input for newly released models
                 allow_manual_model_input = True
             elif service == "OpenRouter":
                 default_model = default_model
@@ -635,5 +703,5 @@ For more information, see here: https://art-from-the-machine.github.io/Mantella/
             return LLMModelList(options, default_model, allows_manual_model_input=allow_manual_model_input)
         except Exception as e:
             utils.play_error_sound()
-            error = f"Failed to retrieve list of models from {service}. A valid API key in 'GPT_SECRET_KEY.txt' is required. The file is in your mod folder of Mantella. Error: {e}"
+            error = f"Failed to retrieve list of models from {error_target}. A valid API key in 'GPT_SECRET_KEY.txt' is required. The file is in your mod folder of Mantella. Error: {e}"
             return LLMModelList([(error,"error")], "error", allows_manual_model_input=False)

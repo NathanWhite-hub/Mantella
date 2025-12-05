@@ -55,12 +55,16 @@ class FunctionClient(ClientBase):
         try:
             # Use the full request call to get both message and tool calls
             chat_completion: ChatCompletion = self._request_call_full(messages)
-            
-            if not chat_completion or not chat_completion.choices or len(chat_completion.choices) < 1:
+
+            assistant_message = self._extract_assistant_message(chat_completion)
+            if not assistant_message:
                 logging.info("Function LLM response failed")
                 return None
-            
-            tool_calls = getattr(chat_completion.choices[0].message, 'tool_calls', None)
+
+            if isinstance(assistant_message, dict):
+                tool_calls = assistant_message.get('tool_calls')
+            else:
+                tool_calls = getattr(assistant_message, 'tool_calls', None)
             
             return tool_calls
             
